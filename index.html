@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Maze Runner</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-main: #0a0a0f;
+            --bg-canvas: #12121a;
+            --maze-wall: #2d3748;
+            --maze-path: #1a1a2e;
+            --creature-best: #00ff88;
+            --creature-current: #ff6b6b;
+            --creature-dead: #4a5568;
+            --accent: #7c3aed;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            background: var(--bg-main);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: linear-gradient(180deg, rgba(124, 58, 237, 0.1) 0%, transparent 100%);
+            border-bottom: 1px solid rgba(124, 58, 237, 0.3);
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--creature-best) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            font-family: inherit;
+            font-size: 13px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: linear-gradient(135deg, var(--accent) 0%, #5b21b6 100%);
+            color: var(--text-primary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
+        }
+
+        button.secondary {
+            background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .speed-control label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        input[type="range"] {
+            width: 100px;
+            accent-color: var(--accent);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 24px            ;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .canvas-container {
+            position: relative;
+        }
+
+        #mazeCanvas {
+            border: 2px solid var(--accent);
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(124, 58, 237, 0.3), inset 0 0 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .info-panel {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .stats-box, .network-box {
+            background: rgba(18, 18, 26, 0.8);
+            border: 1px solid rgba(124, 58, 237, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .stats-box h3, .network-box h3 {
+            font-size: 14px;
+            color: var(--accent);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+        }
+
+        .stat-value {
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-value.highlight {
+            color: var(--creature-best);
+            font-weight: 600;
+        }
+
+        #networkCanvas {
+            width: 100%;
+            height: 200px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .message.success {
+            background: var(--success);
+            color: #000;
+        }
+
+        .message.error {
+            background: #dc2626;
+            color: #fff;
+        }
+
+        .message.show {
+            opacity: 1;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+
+        .training-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 1s infinite;
+        }
+
+        .training-indicator.paused {
+            background: var(--warning);
+            animation: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⧬ Neural Maze Runner</h1>
+            <div class="controls">
+                <button id="startBtn">
+                    <span class="training-indicator" id="trainingIndicator"></span>
+                    Start
+                </button>
+                <button id="resetBtn" class="secondary">Reset</button>
+                <div class="speed-control">
+                    <label>Speed:</label>
+                    <input type="range" id="speedSlider" min="1" max="10" value="1">
+                    <span id="speedValue">1x</span>
+                </div>
+                <button id="exportBtn" class="secondary">Export</button>
+                <button id="importBtn" class="secondary">Import</button>
+                <input type="file" id="importFile" accept=".json">
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="canvas-container">
+                <canvas id="mazeCanvas" width="800" height="600"></canvas>
+            </div>
+
+            <div class="info-panel">
+                <div class="stats-box">
+                    <h3>📊 Statistics</h3>
+                    <div class="stat-row">
+                        <span class="stat-label">Generation</span>
+                        <span class="stat-value" id="genCount">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Best Fitness</span>
+                        <span class="stat-value highlight" id="bestFitness">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Current Fitness</span>
+                        <span class="stat-value" id="currentFitness">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Alive Creatures</span>
+                        <span class="stat-value" id="aliveCount">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Steps This Gen</span>
+                        <span class="stat-value" id="stepsCount">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Best Ever</span>
+                        <span class="stat-value highlight" id="bestEver">0</span>
+                    </div>
+                </div>
+
+                <div class="network-box">
+                    <h3>🧠 Neural Network</h3>
+                    <canvas id="networkCanvas" width="288" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="message" id="message"></div>
+
+    <script>
+        // ==================== NEURAL NETWORK ====================
+        class NeuralNetwork {
+            constructor(inputNodes, hiddenNodes, outputNodes) {
+                this.inputNodes = inputNodes;
+                this.hiddenNodes = hiddenNodes;
+                this.outputNodes = outputNodes;
+                
+                // Initialize weights and biases
+                this.weightsIH = this.randomMatrix(hiddenNodes, inputNodes);
+                this.weightsHO = this.randomMatrix(outputNodes, hiddenNodes);
+                this.biasH = this.randomArray(hiddenNodes);
+                this.biasO = this.randomArray(outputNodes);
+            }
+
+            randomMatrix(rows, cols) {
+                const matrix = [];
+                for (let i = 0; i < rows; i++) {
+                    matrix.push(this.randomArray(cols));
+                }
+                return matrix;
+            }
+
+            randomArray(length) {
+                const arr = [];
+                for (let i = 0; i < length; i++) {
+                    arr.push(Math.random() * 2 - 1);
+                }
+                return arr;
+            }
+
+            sigmoid(x) {
+                return 1 / (1 + Math.exp(-x));
+            }
+
+            tanh(x) {
+                return Math.tanh(x);
+            }
+
+            feedForward(inputs) {
+                // Input to hidden
+                let hidden = [];
+                for (let i = 0; i < this.hiddenNodes; i++) {
+                    let sum = this.biasH[i];
+                    for (let j = 0; j < this.inputNodes; j++) {
+                        sum += inputs[j] * this.weightsIH[i][j];
+                    }
+                    hidden.push(this.tanh(sum));
+                }
+
+                // Hidden to output
+                let outputs = [];
+                for (let i = 0; i < this.outputNodes; i++) {
+                    let sum = this.biasO[i];
+                    for (let j = 0; j < this.hiddenNodes; j++) {
+                        sum += hidden[j] * this.weightsHO[i][j];
+                    }
+                    outputs.push(this.tanh(sum));
+                }
+
+                return outputs;
+            }
+
+            mutate(rate = 0.05, amount = 0.1) {
+                const mutateValue = (val) => {
+                    if (Math.random() < rate) {
+                        return val + (Math.random() * 2 - 1) * amount;
+                    }
+                    return val;
+                };
+
+                this.weightsIH = this.weightsIH.map(row => row.map(mutateValue));
+                this.weightsHO = this.weightsHO.map(row => row.map(mutateValue));
+                this.biasH = this.biasH.map(mutateValue);
+                this.biasO = this.biasO.map(mutateValue);
+            }
+
+            copy() {
+                const nn = new NeuralNetwork(this.inputNodes, this.hiddenNodes, this.outputNodes);
+                nn.weightsIH = JSON.parse(JSON.stringify(this.weightsIH));
+                nn.weightsHO = JSON.parse(JSON.stringify(this.weightsHO));
+                nn.biasH = JSON.parse(JSON.stringify(this.biasH));
+                nn.biasO = JSON.parse(JSON.stringify(this.biasO));
+                return nn;
+            }
+
+            toJSON() {
+                return {
+                    inputNodes: this.inputNodes,
+                    hiddenNodes: this.hiddenNodes,
+                    outputNodes: this.outputNodes,
+                    weights: {
+                        hidden: this.weightsIH,
+                        output: this.weightsHO
+                    },
+                    biases: {
+                        hidden: this.biasH,
+                        output: this.biasO
+                    }
+                };
+            }
+
+            static fromJSON(data) {
+                const nn = new NeuralNetwork(data.inputNodes, data.hiddenNodes, data.outputNodes);
+                nn.weightsIH = data.weights.hidden;
+                nn.weightsHO = data.weights.output;
+                nn.biasH = data.biases.hidden;
+                nn.biasO = data.biases.output;
+                return nn;
+            }
+        }
+
+        // ==================== MAZE & CREATURE ====================
+        const CELL_SIZE = 50;
+        const COLS = 16;
+        const ROWS = 12;
+
+        // 0 = path, 1 = wall, 2 = start, 3 = goal
+        const MAZE = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,2,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,0,1,0,1,1,1,1,1,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+            [1,0,1,1,1,1,1,1,1,1,1,1,0,1,0,1],
+            [1,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1],
+            [1,0,1,0,1,1,1,1,1,1,0,1,1,1,0,1],
+            [1,0,1,0,1,0,0,0,0,0,0,0,0,1,0,1],
+            [1,0,1,0,1,0,1,1,1,1,1,1,0,1,0,1],
+            [1,0,0,0,0,0,1,0,0,0,0,0,0,0,3,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        const START_POS = { x: 1, y: 1 };
+        const GOAL_POS = { x: 14, y: 9 };
+
+        class Creature {
+            constructor(brain = null) {
+                if (brain) {
+                    this.brain = brain.copy();
+                } else {
+                    this.brain = new NeuralNetwork(4, 6, 2);
+                }
+                
+                this.reset();
+            }
+
+            reset() {
+                this.x = START_POS.x * CELL_SIZE + CELL_SIZE / 2;
+                this.y = START_POS.y * CELL_SIZE + CELL_SIZE / 2;
+                this.angle = 0;
+                this.alive = true;
+                this.reachedGoal = false;
+                this.fitness = 0;
+                this.steps = 0;
+                this.maxSteps = 2000;
+                this.sensors = [1, 1, 1, 1];
+                this.trail = [];
+            }
+
+            getSensors() {
+                const sensorAngles = [-Math.PI/4, -Math.PI/12, Math.PI/12, Math.PI/4];
+                const sensorLength = 60;
+                
+                for (let i = 0; i < 4; i++) {
+                    const angle = this.angle + sensorAngles[i];
+                    const endX = this.x + Math.cos(angle) * sensorLength;
+                    const endY = this.y + Math.sin(angle) * sensorLength;
+                    
+                    let closest = sensorLength;
+                    for (let r = 0; r < MAZE.length; r++) {
+                        for (let c = 0; c < MAZE[0].length; c++) {
+                            if (MAZE[r][c] === 1) {
+                                const wallX = c * CELL_SIZE;
+                                const wallY = r * CELL_SIZE;
+                                const hit = this.rayRectIntersect(
+                                    this.x, this.y, endX, endY,
+                                    wallX, wallY, CELL_SIZE, CELL_SIZE
+                                );
+                                if (hit < closest) closest = hit;
+                            }
+                        }
+                    }
+                    
+                    this.sensors[i] = 1 - (closest / sensorLength);
+                }
+                
+                return this.sensors;
+            }
+
+            rayRectIntersect(x1, y1, x2, y2, rx, ry, rw, rh) {
+                let closest = Infinity;
+                
+                // Check all four edges
+                const edges = [
+                    [rx, ry, rx + rw, ry],           // top
+                    [rx, ry + rh, rx + rw, ry + rh], // bottom
+                    [rx, ry, rx, ry + rh],           // left
+                    [rx + rw, ry, rx + rw, ry + rh]  // right
+                ];
+                
+                for (const [ex1, ey1, ex2, ey2] of edges) {
+                    const hit = this.lineLineIntersect(x1, y1, x2, y2, ex1, ey1, ex2, ey2);
+                    if (hit && hit < closest) closest = hit;
+                }
+                
+                // Check if starting inside a wall
+                const gridX = Math.floor(this.x / CELL_SIZE);
+                const gridY = Math.floor(this.y / CELL_SIZE);
+                if (gridY >= 0 && gridY < MAZE.length && gridX >= 0 && gridX < MAZE[0].length) {
+                    if (MAZE[gridY][gridX] === 1) return 0;
+                }
+                
+                return closest === Infinity ? 60 : closest;
+            }
+
+            lineLineIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
+                const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+                if (Math.abs(denom) < 0.0001) return null;
+                
+                const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+                const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+                
+                if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+                    const ix = x1 + t * (x2 - x1);
+                    const iy = y1 + t * (y2 - y1);
+                    return Math.sqrt((ix - x1) ** 2 + (iy - y1) ** 2);
+                }
+                return null;
+            }
+
+            update() {
+                if (!this.alive) return;
+                
+                this.steps++;
+                
+                // Get sensor readings
+                const inputs = this.getSensors();
+                
+                // Feed through neural network
+                const outputs = this.brain.feedForward(inputs);
+                
+                // Turn based on outputs
+                const turnRate = 0.08;
+                this.angle += (outputs[0] - outputs[1]) * turnRate;
+                
+                // Move forward
+                const speed = 2;
+                const newX = this.x + Math.cos(this.angle) * speed;
+                const newY = this.y + Math.sin(this.angle) * speed;
+                
+                // Check collision with walls
+                const gridX = Math.floor(newX / CELL_SIZE);
+                const gridY = Math.floor(newY / CELL_SIZE);
+                
+                if (gridY < 0 || gridY >= MAZE.length || gridX < 0 || gridX >= MAZE[0].length) {
+                    this.alive = false;
+                    return;
+                }
+                
+                if (MAZE[gridY][gridX] === 1) {
+                    this.alive = false;
+                    return;
+                }
+                
+                // Add to trail
+                this.trail.push({ x: this.x, y: this.y });
+                if (this.trail.length > 20) this.trail.shift();
+                
+                this.x = newX;
+                this.y = newY;
+                
+                // Check goal
+                if (MAZE[gridY][gridX] === 3) {
+                    this.reachedGoal = true;
+                    this.alive = false;
+                }
+                
+                // Timeout
+                if (this.steps > this.maxSteps) {
+                    this.alive = false;
+                }
+                
+                // Calculate fitness
+                const distToGoal = Math.sqrt(
+                    (this.x - GOAL_POS.x * CELL_SIZE - CELL_SIZE/2) ** 2 +
+                    (this.y - GOAL_POS.y * CELL_SIZE - CELL_SIZE/2) ** 2
+                );
+                
+                if (this.reachedGoal) {
+                    this.fitness = 1000 + (2000 - this.steps);
+                } else {
+                    this.fitness = 1000 - distToGoal;
+                }
+            }
+        }
+
+        // ==================== GENETIC ALGORITHM ====================
+        class GeneticAlgorithm {
+            constructor(populationSize = 50) {
+                this.populationSize = populationSize;
+                this.population = [];
+                this.generation = 0;
+                this.bestFitness = 0;
+                this.bestEverFitness = 0;
+                this.bestCreature = null;
+                
+                // Initialize population
+                for (let i = 0; i < populationSize; i++) {
+                    this.population.push(new Creature());
+                }
+            }
+
+            nextGeneration() {
+                this.generation++;
+                
+                // Sort by fitness
+                this.population.sort((a, b) => b.fitness - a.fitness);
+                
+                // Update best
+                if (this.population[0].fitness > this.bestFitness) {
+                    this.bestFitness = this.population[0].fitness;
+                }
+                if (this.population[0].fitness > this.bestEverFitness) {
+                    this.bestEverFitness = this.population[0].fitness;
+                    this.bestCreature = this.population[0].brain.copy();
+                }
+                
+                // Selection: top 20%
+                const survivors = Math.floor(this.populationSize * 0.2);
+                const newPopulation = [];
+                
+                // Keep best creature unchanged
+                newPopulation.push(new Creature(this.population[0].brain));
+                
+                // Create mutated copies
+                for (let i = 1; i < this.populationSize; i++) {
+                    const parent = this.population[Math.floor(Math.random() * survivors)];
+                    const child = new Creature(parent.brain);
+                    child.mutate(0.05, 0.1);
+                    newPopulation.push(child);
+                }
+                
+                this.population = newPopulation;
+            }
+
+            getAliveCount() {
+                return this.population.filter(c => c.alive).length;
+            }
+
+            allDead() {
+                return this.population.every(c => !c.alive);
+            }
+
+            getBestCurrent() {
+                return this.population[0];
+            }
+        }
+
+        // ==================== RENDERING ====================
+        const mazeCanvas = document.getElementById('mazeCanvas');
+        const mazeCtx = mazeCanvas.getContext('2d');
+        const networkCanvas = document.getElementById('networkCanvas');
+        const networkCtx = networkCanvas.getContext('2d');
+
+        let ga = new GeneticAlgorithm(50);
+        let isRunning = false;
+        let speed = 1;
+        let animationId = null;
+        let currentStep = 0;
+
+        function drawMaze() {
+            mazeCtx.fillStyle = '#12121a';
+            mazeCtx.fillRect(0, 0, mazeCanvas.width, mazeCanvas.height);
+            
+            for (let r = 0; r < MAZE.length; r++) {
+                for (let c = 0; c < MAZE[0].length; c++) {
+                    const x = c * CELL_SIZE;
+                    const y = r * CELL_SIZE;
+                    
+                    if (MAZE[r][c] === 1) {
+                        // Wall
+                        mazeCtx.fillStyle = '#2d3748';
+                        mazeCtx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+                        mazeCtx.strokeStyle = '#4a5568';
+                        mazeCtx.lineWidth = 1;
+                        mazeCtx.strokeRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+                    } else if (MAZE[r][c] === 2) {
+                        // Start
+                        mazeCtx.fillStyle = 'rgba(0, 255, 136, 0.1)';
+                        mazeCtx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+                    } else if (MAZE[r][c] === 3) {
+                        // Goal
+                        mazeCtx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+                        mazeCtx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+                        mazeCtx.fillStyle = '#f59e0b';
+                        mazeCtx.beginPath();
+                        mazeCtx.arc(x + CELL_SIZE/2, y + CELL_SIZE/2, 10, 0, Math.PI * 2);
+                        mazeCtx.fill();
+                    }
+                }
+            }
+        }
+
+        function drawCreatures() {
+            const best = ga.getBestCurrent();
+            
+            for (const creature of ga.population) {
+                if (!creature.alive && creature !== best) continue;
+                
+                const isBest = creature === best;
+                let color;
+                
+                if (creature.reachedGoal) {
+                    color = '#f59e0b';
+                } else if (!creature.alive) {
+                    color = '#4a5568';
+                } else if (isBest) {
+                    color = '#00ff88';
+                } else {
+                    color = '#ff6b6b';
+                }
+                
+                // Draw trail
+                if (creature.trail.length > 1) {
+                    mazeCtx.beginPath();
+                    mazeCtx.moveTo(creature.trail[0].x, creature.trail[0].y);
+                    for (let i = 1; i < creature.trail.length; i++) {
+                        mazeCtx.lineTo(creature.trail[i].x, creature.trail[i].y);
+                    }
+                    mazeCtx.strokeStyle = color + '40';
+                    mazeCtx.lineWidth = 2;
+                    mazeCtx.stroke();
+                }
+                
+                // Draw creature
+                mazeCtx.fillStyle = color;
+                mazeCtx.beginPath();
+                mazeCtx.arc(creature.x, creature.y, 8, 0, Math.PI * 2);
+                mazeCtx.fill();
+                
+                // Draw direction
+                mazeCtx.strokeStyle = '#fff';
+                mazeCtx.lineWidth = 2;
+                mazeCtx.beginPath();
+                mazeCtx.moveTo(creature.x, creature.y);
+                mazeCtx.lineTo(
+                    creature.x + Math.cos(creature.angle) * 12,
+                    creature.y + Math.sin(creature.angle) * 12
+                );
+                mazeCtx.stroke();
+                
+                // Draw sensors for best creature
+                if (isBest && creature.alive) {
+                    const sensorAngles = [-Math.PI/4, -Math.PI/12, Math.PI/12, Math.PI/4];
+                    const sensorLength = 60;
+                    
+                    for (let i = 0; i < 4; i++) {
+                        const angle = creature.angle + sensorAngles[i];
+                        const endX = creature.x + Math.cos(angle) * sensorLength * creature.sensors[i];
+                        const endY = creature.y + Math.sin(angle) * sensorLength * creature.sensors[i];
+                        
+                        mazeCtx.strokeStyle = `rgba(124, 58, 237, ${creature.sensors[i]})`;
+                        mazeCtx.lineWidth = 1;
+                        mazeCtx.beginPath();
+                        mazeCtx.moveTo(creature.x, creature.y);
+                        mazeCtx.lineTo(endX, endY);
+                        mazeCtx.stroke();
+                    }
+                }
+            }
+        }
+
+        function drawNeuralNetwork() {
+            networkCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            networkCtx.fillRect(0, 0, networkCanvas.width, networkCanvas.height);
+            
+            const brain = ga.getBestCurrent().brain;
+            
+            const layerGap = 80;
+            const inputX = 40;
+            const hiddenX = inputX + layerGap;
+            const outputX = hiddenX + layerGap;
+            
+            const inputY = [30, 70, 110, 150];
+            const hiddenY = [25, 55, 85, 115, 145, 175];
+            const outputY = [60, 140];
+            
+            // Draw connections
+            const maxWeight = 1;
+            
+            // Input to Hidden
+            for (let i = 0; i < brain.inputNodes; i++) {
+                for (let j = 0; j < brain.hiddenNodes; j++) {
+                    const weight = brain.weightsIH[j][i];
+                    const alpha = Math.abs(weight) / maxWeight;
+                    networkCtx.strokeStyle = weight > 0 ? `rgba(0, 255, 136, ${alpha})` : `rgba(255, 107, 107, ${alpha})`;
+                    networkCtx.lineWidth = Math.max(0.5, alpha * 2);
+                    networkCtx.beginPath();
+                    networkCtx.moveTo(inputX, inputY[i]);
+                    networkCtx.lineTo(hiddenX, hiddenY[j]);
+                    networkCtx.stroke();
+                }
+            }
+            
+            // Hidden to Output
+            for (let i = 0; i < brain.hiddenNodes; i++) {
+                for (let j = 0; j < brain.outputNodes; j++) {
+                    const weight = brain.weightsHO[j][i];
+                    const alpha = Math.abs(weight) / maxWeight;
+                    networkCtx.strokeStyle = weight > 0 ? `rgba(0, 255, 136, ${alpha})` : `rgba(255, 107, 107, ${alpha})`;
+                    networkCtx.lineWidth = Math.max(0.5, alpha * 2);
+                    networkCtx.beginPath();
+                    networkCtx.moveTo(hiddenX, hiddenY[i]);
+                    networkCtx.lineTo(outputX, outputY[j]);
+                    networkCtx.stroke();
+                }
+            }
+            
+            // Draw nodes
+            const nodeRadius = 8;
+            
+            // Input nodes
+            for (let i = 0; i < brain.inputNodes; i++) {
+                networkCtx.fillStyle = '#7c3aed';
+                networkCtx.beginPath();
+                networkCtx.arc(inputX, inputY[i], nodeRadius, 0, Math.PI * 2);
+                networkCtx.fill();
+                
+                networkCtx.fillStyle = '#e2e8f0';
+                networkCtx.font = '9px JetBrains Mono';
+                networkCtx.textAlign = 'right';
+                const labels = ['L', 'FL', 'FR', 'R'];
+                networkCtx.fillText(labels[i], inputX - 12, inputY[i] + 3);
+            }
+            
+            // Hidden nodes
+            for (let i = 0; i < brain.hiddenNodes; i++) {
+                networkCtx.fillStyle = '#7c3aed';
+                networkCtx.beginPath();
+                networkCtx.arc(hiddenX, hiddenY[i], nodeRadius, 0, Math.PI * 2);
+                networkCtx.fill();
+            }
+            
+            // Output nodes
+            for (let i = 0; i < brain.outputNodes; i++) {
+                networkCtx.fillStyle = '#7c3aed';
+                networkCtx.beginPath();
+                networkCtx.arc(outputX, outputY[i], nodeRadius, 0, Math.PI * 2);
+                networkCtx.fill();
+                
+                networkCtx.fillStyle = '#e2e8f0';
+                networkCtx.font = '9px JetBrains Mono';
+                networkCtx.textAlign = 'left';
+                const labels = ['←', '→'];
+                networkCtx.fillText(labels[i], outputX + 14, outputY[i] + 3);
+            }
+        }
+
+        function updateStats() {
+            const best = ga.getBestCurrent();
+            document.getElementById('genCount').textContent = ga.generation;
+            document.getElementById('bestFitness').textContent = Math.round(ga.bestFitness);
+            document.getElementById('currentFitness').textContent = Math.round(best.fitness);
+            document.getElementById('aliveCount').textContent = ga.getAliveCount();
+            document.getElementById('stepsCount').textContent = currentStep;
+            document.getElementById('bestEver').textContent = Math.round(ga.bestEverFitness);
+        }
+
+        function gameLoop() {
+            if (!isRunning) return;
+            
+            for (let s = 0; s < speed; s++) {
+                // Update all creatures
+                for (const creature of ga.population) {
+                    if (creature.alive) {
+                        creature.update();
+                    }
+                }
+                currentStep++;
+                
+                // Check if all dead
+                if (ga.allDead()) {
+                    ga.nextGeneration();
+                    currentStep = 0;
+                    break;
+                }
+            }
+            
+            // Draw
+            drawMaze();
+            drawCreatures();
+            drawNeuralNetwork();
+            updateStats();
+            
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // ==================== CONTROLS ====================
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const exportBtn = document.getElementById('exportBtn');
+        const importBtn = document.getElementById('importBtn');
+        const importFile = document.getElementById('importFile');
+        const trainingIndicator = document.getElementById('trainingIndicator');
+
+        startBtn.addEventListener('click', () => {
+            isRunning = !isRunning;
+            startBtn.textContent = isRunning ? 'Pause' : 'Start';
+            trainingIndicator.classList.toggle('paused', !isRunning);
+            
+            if (isRunning) {
+                gameLoop();
+            } else {
+                cancelAnimationFrame(animationId);
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            isRunning = false;
+            startBtn.textContent = 'Start';
+            trainingIndicator.classList.add('paused');
+            cancelAnimationFrame(animationId);
+            
+            ga = new GeneticAlgorithm(50);
+            currentStep = 0;
+            
+            drawMaze();
+            drawCreatures();
+            drawNeuralNetwork();
+            updateStats();
+            
+            showMessage('Simulation reset!', 'success');
+        });
+
+        speedSlider.addEventListener('input', (e) => {
+            speed = parseInt(e.target.value);
+            speedValue.textContent = speed + 'x';
+        });
+
+        exportBtn.addEventListener('click', () => {
+            const best = ga.getBestCurrent();
+            const data = {
+                generation: ga.generation,
+                fitness: best.fitness,
+                ...best.brain.toJSON()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `neural-network-gen${ga.generation}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showMessage('Neural network exported!', 'success');
+        });
+
+        importBtn.addEventListener('click', () => {
+            importFile.click();
+        });
+
+        importFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    
+                    if (!data.weights || !data.biases) {
+                        throw new Error('Invalid file format');
+                    }
+                    
+                    const brain = NeuralNetwork.fromJSON(data);
+                    
+                    // Apply to current population
+                    for (const creature of ga.population) {
+                        creature.brain = brain.copy();
+                        creature.reset();
+                    }
+                    
+                    ga.bestFitness = data.fitness || 0;
+                    ga.bestEverFitness = Math.max(ga.bestEverFitness, data.fitness || 0);
+                    
+                    drawMaze();
+                    drawCreatures();
+                    drawNeuralNetwork();
+                    updateStats();
+                    
+                    showMessage('Neural network imported!', 'success');
+                } catch (err) {
+                    showMessage('Failed to import: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = 'message ' + type + ' show';
+            setTimeout(() => {
+                msg.classList.remove('show');
+            }, 3000);
+        }
+
+        // Initial draw
+        drawMaze();
+        drawCreatures();
+        drawNeuralNetwork();
+        updateStats();
+    </script>
+</body>
+</html>
